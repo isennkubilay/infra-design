@@ -1,0 +1,76 @@
+---
+- name: Update fs.file-max kernel parameter for multiple distros with RabbitMQ condition
+  hosts: all
+  become: yes
+  serial: 50 # Update 50 hosts at a time
+  tasks:
+    - name: Check Linux distribution
+      ansible.builtin.setup:
+        gather_subset:
+          - "os_family"
+      register: os_info
+
+    - name: Check if RabbitMQ is running
+      shell: |
+        systemctl is-active rabbitmq-server
+      register: rabbitmq_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Update kernel parameter for Ubuntu with RabbitMQ condition
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - rabbitmq_status.stdout == "active"
+      block:
+        - name: Set fs.file-max to 500000
+          sysctl:
+            name: fs.file-max
+            value: "500000"
+            state: present
+
+        - name: Ensure change persists in /etc/sysctl.conf
+          lineinfile:
+            path: /etc/sysctl.conf
+            regexp: "^fs.file-max"
+            line: "fs.file-max = 500000"
+
+    - name: Update kernel parameter for CentOS with RabbitMQ condition
+      when:
+        - ansible_facts['os_family'] == "RedHat"
+        - rabbitmq_status.stdout == "active"
+      block:
+        - name: Set fs.file-max to 500000
+          sysctl:
+            name: fs.file-max
+            value: "500000"
+            state: present
+
+        - name: Ensure change persists in /etc/sysctl.conf
+          lineinfile:
+            path: /etc/sysctl.conf
+            regexp: "^fs.file-max"
+            line: "fs.file-max = 500000"
+
+    - name: Update kernel parameter for SUSE-based systems
+      when:
+        - ansible_facts['os_family'] == "Suse"
+        - rabbitmq_status.stdout == "active"
+      block:
+        - name: Set fs.file-max to 500000
+          sysctl:
+            name: fs.file-max
+            value: "500000"
+            state: present
+
+        - name: Ensure change persists in /etc/sysctl.conf
+          lineinfile:
+            path: /etc/sysctl.conf
+            regexp: "^fs.file-max"
+            line: "fs.file-max = 500000"
+
+    - name: Add support for other Linux distributions
+      when:
+        - rabbitmq_status.stdout == "active"
+        - ansible_facts['os_family'] not in ["Debian", "RedHat", "Suse"]
+      debug:
+        msg: "OS family {{ ansible_facts['os_family'] }} is not explicitly handled."
